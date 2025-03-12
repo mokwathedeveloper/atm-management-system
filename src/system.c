@@ -1,4 +1,6 @@
 #include "header.h"
+#include <ctype.h>
+
 
 const char *RECORDS = "./data/records.txt";
 

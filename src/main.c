@@ -1,4 +1,6 @@
 #include "header.h"
+#include <ctype.h>
+
 
 #define USERS_FILE "./data/users.txt"
 
