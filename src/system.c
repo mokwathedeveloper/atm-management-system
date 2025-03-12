@@ -444,4 +444,462 @@ void checkSpecificAccount(struct User u)
     system("clear");
     printf("\t\t===== Check Specific Account =====\n\n");
 
+    // Ask for the account number
+    printf("Enter the account number you want to check: ");
+    fgets(input, sizeof(input), stdin);
+    if (strchr(input, ' ') != NULL)
+    {
+        printf("\n✖ Input contains space. Please try again.\n");
+        fclose(pf);
+        return;
+    }
+    sscanf(input, "%d", &accountNumber);
+
+    // Search for the account in the file
+    while (getAccountFromFile(pf, userName, &r))
+    {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNumber)
+        {
+            // Print the account details
+            printf("\n✔ Account Found!\n");
+            printf("_____________________\n");
+            printf("Account number: %d\n", r.accountNbr);
+            printf("Deposit Date: %d/%d/%d\n", r.deposit.month, r.deposit.day, r.deposit.year);
+            printf("Country: %s\n", r.country);
+            printf("Phone number: %d\n", r.phone);
+            printf("Amount deposited: $%.2f\n", r.amount);
+            printf("Account Type: %s\n", r.accountType);
+
+            if (strcmp(r.accountType, "current") == 0) {
+                printf("\n\nYou will not get interest because this account is of type %s\n", r.accountType);
+            } else if (strcmp(r.accountType, "saving") == 0) { 
+                printf("\n\nYou will gain an interest of $5.84 on day %d of every month\n", r.deposit.day);
+            } else if (strcmp(r.accountType, "fixed01") == 0) {
+                int year = r.deposit.year + 1;
+                printf("\n\nYou will gain an interest of $40.05 on %d/%d/%d\n", r.deposit.month, r.deposit.day, year);
+            } else if (strcmp(r.accountType, "fixed02") == 0) {
+                int year = r.deposit.year + 2;
+                printf("\n\nYou will gain an interest of $100.12 on %d/%d/%d\n", r.deposit.month, r.deposit.day, year);
+            } else if (strcmp(r.accountType, "fixed03") == 0) {
+                int year = r.deposit.year + 3;
+                printf("\n\nYou will gain an interest of $240.29 on %d/%d/%d\n", r.deposit.month, r.deposit.day, year);
+            }
+            found = 1;
+            break; // Exit loop since we found the account
+        }
+    }
+
+    fclose(pf); // Close file
+
+    // If no account was found, inform the user
+    if (!found)
+    {
+        printf("\n✖ No account found with number %d for user %s.\n", accountNumber, u.name);
+    }
+
+    success(u); // Optionally call success after the process
+}
+
+
+void checkAllAccounts(struct User u)
+{
+    char userName[100];
+    struct Record r;
+
+    FILE *pf = fopen(RECORDS, "r");
+
+    system("clear");
+    printf("\t\t====== All accounts from user, %s =====\n\n", u.name);
+    while (getAccountFromFile(pf, userName, &r))
+    {
+        if (strcmp(userName, u.name) == 0)
+        {
+            printf("_____________________\n");
+            printf("\nAccount number:%d\nDeposit Date:%d/%d/%d \ncountry:%s \nPhone number:%d \nAmount deposited: $%.2f \nType Of Account:%s\n",
+                   r.accountNbr,
+                   r.deposit.day,
+                   r.deposit.month,
+                   r.deposit.year,
+                   r.country,
+                   r.phone,
+                   r.amount,
+                   r.accountType);
+        }
+    }
+    fclose(pf);
+    success(u);
+}
+
+void removeAccount(struct User u)
+{
+    struct Record r;
+    char userName[50];
+    int accountNumber, found = 0;
+    char input[100]; // Buffer for input
+
+    FILE *pf = fopen(RECORDS, "r");  // Open records file for reading
+    FILE *tempFile = fopen("temp.txt", "w");  // Temporary file to store updated data
+
+    if (pf == NULL || tempFile == NULL)
+    {
+        perror("Error opening file");
+        return;
+    }
+
+    system("clear");
+    printf("\t\t===== Remove Account =====\n\n");
+
+    // Ask user for the account number
+    printf("Enter the account number to remove: ");
+    fgets(input, sizeof(input), stdin);
+    if (strchr(input, ' ') != NULL)
+    {
+        printf("\n✖ Input contains space. Please try again.\n");
+        fclose(pf);
+        fclose(tempFile);
+        remove("temp.txt");
+        return;
+    }
+    sscanf(input, "%d", &accountNumber);
+    int indexid = -1;
+
+    // Read each account and copy to temp file, excluding the one being deleted
+    while (getAccountFromFile(pf, userName, &r))
+    {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNumber)
+        {
+            printf("\n✔ Account %d has been removed successfully!\n", accountNumber);
+            found = 1; // Account found
+            continue;  // Skip writing this account to the temp file (delete it)
+        }
+        indexid++;
+        // Write remaining accounts to temp file
+        fprintf(tempFile, "%d %d %s %d %d/%d/%d %s %d %.2lf %s\n\n",
+                indexid,
+                r.userId,
+                userName,
+                r.accountNbr,
+                r.deposit.month,
+                r.deposit.day,
+                r.deposit.year,
+                r.country,
+                r.phone,
+                r.amount,
+                r.accountType);
+    }
+
+    fclose(pf);
+    fclose(tempFile);
+
+    // If no account was found, notify the user and delete temp file
+    if (!found)
+    {
+        printf("\n✖ No account found with number %d for user %s.\n", accountNumber, u.name);
+        remove("temp.txt"); // Remove temp file as it's not needed
+    }
+    else
+    {
+        remove(RECORDS);          // Delete old records file
+        rename("temp.txt", RECORDS); // Rename temp file to records file
+    }
+
+    success(u); // Call success function to return to menu or exit
+}
+
+void transferAccountOwnership(struct User u)
+{
+    struct Record r;
+    char userName[50], newOwner[50];
+    int accountNumber, found = 0, newOwnerId = -1;
+    char line[100], fileUserName[50];
+    int fileUserId;
+    char password[50];
+    int recordIndex; // For tracking the record index in the file
+    char input[100]; // Buffer for input
     
+    FILE *pf = fopen(RECORDS, "r");
+    FILE *tempFile = fopen("temp.txt", "w");
+    FILE *uf = fopen("./data/users.txt", "r");
+    
+    if (pf == NULL || tempFile == NULL || uf == NULL)
+    {
+        perror("Error opening file");
+        return;
+    }
+    
+    system("clear");
+    printf("\t\t===== Transfer Account Ownership =====\n\n");
+    printf("Enter the account number to transfer: ");
+    fgets(input, sizeof(input), stdin);
+    if (strchr(input, ' ') != NULL || strspn(input, "0123456789\n") != strlen(input))
+    {
+        printf("\n✖ Input must be a valid integer without spaces. Please try again.\n");
+        fclose(pf);
+        fclose(tempFile);
+        fclose(uf);
+        remove("temp.txt");
+        return;
+    }
+    sscanf(input, "%d", &accountNumber);
+    
+    // Reset file pointer to beginning
+    rewind(pf);
+    
+    // Check if the account exists and belongs to the current user
+    while (fscanf(pf, "%d %d %s %d %d/%d/%d %s %d %lf %s\n",
+                  &recordIndex, &r.id, userName, &r.accountNbr,
+                  &r.deposit.month, &r.deposit.day, &r.deposit.year,
+                  r.country, &r.phone, &r.amount, r.accountType) == 11)
+    {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNumber)
+        {
+            found = 1;
+            printf("\n✔ Account %d found!", accountNumber);
+            while (1)
+            {
+                int valid = 1;
+                printf("\n\nEnter the new owner's username: ");
+                fgets(newOwner, sizeof(newOwner), stdin);
+                if (strchr(newOwner, ' ') != NULL)
+                {
+                    printf("\n✖ Input contains space. Please try again.\n");
+                    continue;
+                }
+                newOwner[strcspn(newOwner, "\n")] = 0; // Remove newline character
+                for (int i = 0; newOwner[i] != '\0'; i++)
+                {
+                    if (!isalpha(newOwner[i]))
+                    {
+                        valid = 0;
+                        break;
+                    }
+                }
+                if (valid)
+                    break;
+                else
+                    printf("\n✖ Username must contain only alphabet characters. Please try again.\n");
+            }
+            newOwner[strcspn(newOwner, "\n")] = 0; // Remove newline character
+            
+            // Find the user ID of the new owner
+            rewind(uf);
+            while (fgets(line, sizeof(line), uf))
+            {
+                sscanf(line, "%d %s %s", &fileUserId, fileUserName, password);
+                if (strcmp(fileUserName, newOwner) == 0)
+                {
+                    newOwnerId = fileUserId;
+                    break;
+                }
+            }
+            
+            if (newOwnerId == -1)
+            {
+                printf("\n✖ New owner username not found.\n");
+                fclose(pf);
+                fclose(tempFile);
+                fclose(uf);
+                remove("temp.txt");
+                return;
+            }
+            
+            // Write the transferred account with updated owner but SAME record index
+            fprintf(tempFile, "%d %d %s %d %d/%d/%d %s %d %.2lf %s\n\n",
+                recordIndex,      // Keep original index
+                newOwnerId,       // Update to new owner's ID
+                newOwner,         // Update to new owner's name
+                r.accountNbr,
+                r.deposit.month,
+                r.deposit.day,
+                r.deposit.year,
+                r.country,
+                r.phone,
+                r.amount,
+                r.accountType);
+        }
+        else
+        {
+            // Copy the original record to temp file without changes
+            fprintf(tempFile, "%d %d %s %d %d/%d/%d %s %d %.2lf %s\n\n",
+                recordIndex,     // Keep original index
+                r.id,            // Keep original user ID
+                userName,        // Keep original username
+                r.accountNbr,
+                r.deposit.month,
+                r.deposit.day,
+                r.deposit.year,
+                r.country,
+                r.phone,
+                r.amount,
+                r.accountType);
+        }
+    }
+    
+    fclose(pf);
+    fclose(tempFile);
+    fclose(uf);
+    
+    if (found)
+    {
+        remove(RECORDS);
+        rename("temp.txt", RECORDS);
+        printf("\n✔ Account %d has been successfully transferred to %s!\n", accountNumber, newOwner);
+    }
+    else
+    {
+        printf("\n✖ No account found with number %d for user %s.\n", accountNumber, u.name);
+        remove("temp.txt");
+    }
+    
+    success(u);
+}
+
+void makeTransaction(struct User u)
+{
+    struct Record r;
+    char userName[50];
+    int accountNumber, found = 0, transactionType;
+    double amount;
+    char input[100]; // Buffer for input
+
+    FILE *pf = fopen(RECORDS, "r");  // Open the file for reading
+    FILE *tempFile = fopen("temp.txt", "w");  // Temporary file for updates
+
+    if (pf == NULL || tempFile == NULL)
+    {
+        perror("Error opening file");
+        return;
+    }
+
+    system("clear");
+    printf("\t\t===== Make a Transaction =====\n\n");
+
+    // Ask the user for the account number
+    printf("Enter your account number: ");
+    fgets(input, sizeof(input), stdin);
+    if (strchr(input, ' ') != NULL)
+    {
+        printf("\n✖ Input contains space. Please try again.\n");
+        fclose(pf);
+        fclose(tempFile);
+        remove("temp.txt");
+        return;
+    }
+    sscanf(input, "%d", &accountNumber);
+
+    // Look for the account in the file
+    while (getAccountFromFile(pf, userName, &r))
+    {
+        if (strcmp(userName, u.name) == 0 && r.accountNbr == accountNumber)
+        {
+            if ((strcmp(r.accountType, "fixed01") == 0 )|| (strcmp(r.accountType, "fixed02") == 0 ) || (strcmp(r.accountType, "fixed03") == 0 )){
+                printf("\n\nCannot make transactions in a fixed account\n\n");
+                success(u);
+            }
+            found = 1;
+            printf("\n✔ Account %d found! Current balance: $%.2lf\n", r.accountNbr, r.amount);
+            
+            // Ask user for the transaction type
+            printf("\nSelect transaction type:\n1 - Deposit\n2 - Withdraw\nEnter choice: ");
+            fgets(input, sizeof(input), stdin);
+            if (strchr(input, ' ') != NULL)
+            {
+                printf("\n✖ Input contains space. Please try again.\n");
+                fclose(pf);
+                fclose(tempFile);
+                remove("temp.txt");
+                return;
+            }
+            sscanf(input, "%d", &transactionType);
+
+            // Handle deposit
+            if (transactionType == 1)
+            {
+                printf("\nEnter deposit amount: $");
+                fgets(input, sizeof(input), stdin);
+                if (strchr(input, ' ') != NULL)
+                {
+                    printf("\n✖ Input contains space. Please try again.\n");
+                    fclose(pf);
+                    fclose(tempFile);
+                    remove("temp.txt");
+                    return;
+                }
+                sscanf(input, "%lf", &amount);
+                if (amount < 0)
+                {
+                    printf("\n✖ Negative amounts are not allowed. Transaction canceled.\n");
+                }
+                else
+                {
+                    r.amount += amount;
+                    printf("\n✔ Successfully deposited $%.2lf. New balance: $%.2lf\n", amount, r.amount);
+                }
+            }
+            // Handle withdrawal
+            else if (transactionType == 2)
+            {
+                printf("\nEnter withdrawal amount: $");
+                fgets(input, sizeof(input), stdin);
+                if (strchr(input, ' ') != NULL)
+                {
+                    printf("\n✖ Input contains space. Please try again.\n");
+                    fclose(pf);
+                    fclose(tempFile);
+                    remove("temp.txt");
+                    return;
+                }
+                sscanf(input, "%lf", &amount);
+                if (amount < 0)
+                {
+                    printf("\n✖ Negative amounts are not allowed. Transaction canceled.\n");
+                }
+                else if (amount > r.amount)
+                {
+                    printf("\n✖ Insufficient funds! Transaction canceled.\n");
+                }
+                else
+                {
+                    r.amount -= amount;
+                    printf("\n✔ Successfully withdrew $%.2lf. New balance: $%.2lf\n", amount, r.amount);
+                }
+            }
+            else
+            {
+                printf("\n✖ Invalid transaction type! No changes made.\n");
+            }
+        }
+
+        // Write updated or original data to temp file
+        fprintf(tempFile, "%d %d %s %d %d/%d/%d %s %d %.2lf %s\n\n",
+                r.id,
+                r.userId,
+                userName,
+                r.accountNbr,
+                r.deposit.month,
+                r.deposit.day,
+                r.deposit.year,
+                r.country,
+                r.phone,
+                r.amount,
+                r.accountType);
+    }
+
+    fclose(pf);
+    fclose(tempFile);
+
+    // If account was found, update the main file
+    if (found)
+    {
+        remove(RECORDS);
+        rename("temp.txt", RECORDS);
+        printf("\n✔ Transaction completed successfully!\n");
+    }
+    else
+    {
+        printf("\n✖ No account found with number %d for user %s.\n", accountNumber, u.name);
+        remove("temp.txt"); // Remove temp file since no updates were made
+    }
+
+    success(u); // Allow the user to return to the menu or exit
+}
